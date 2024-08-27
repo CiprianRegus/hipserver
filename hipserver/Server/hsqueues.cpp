@@ -297,6 +297,8 @@ static void processRxQueue()
     {
       print_to_both(p_toolLogPtr, "Failed to receive msg from APP\n");
     }
+
+    k_sleep(K_MSEC(1000));
   } while (TRUE); /* run forever */
 }
 
@@ -312,6 +314,8 @@ void *popRxThrFunc(void *thrName)
     processRxQueue();
 
     usleep(QSLEEP * 1000);      // microseconds
+    k_sleep(K_MSEC(1000));
+    printf("popRxThrFunc running\n");
 
   } while (TRUE); /* run forever */
 }

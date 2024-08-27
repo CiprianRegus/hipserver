@@ -54,8 +54,8 @@
 /* Queue descriptors for the message queues between the HART-IP Server
  * and the APP.
  */
-mqd_t rspQueue = LINUX_ERROR; // requests flow from server to app
-mqd_t reqQueue = LINUX_ERROR; // responses flow from app to server
+mqd_t rspQueue = reinterpret_cast<mqd_t>(LINUX_ERROR); // requests flow from server to app
+mqd_t reqQueue = reinterpret_cast<mqd_t>(LINUX_ERROR); // responses flow from app to server
 
 static ssize_t numBytesRead = 0; // for debugging
 
@@ -85,30 +85,33 @@ static int32_t sizeof_msg(mqd_t d);
  */
 int highest_instance_number()
 {
-	int highest = -1;	// none found
+  /* We only have 1 instance */
+  return 0;
 
-	// get all the open resp MQs
-	const char *cmd = "/bin/ls  /dev/mqueue" QNAME_RSP "_* 2>/dev/null";
-	FILE *fp = popen(cmd, "r");
-	if (fp == NULL)
-	{
-		return -1;
-	}
+	// int highest = -1;	// none found
 
-	/* Read the output a line at a time  */
-  const int pathsize = 1200;
-	char path[pathsize];
-	while (fgets(path, sizeof(path)-1, fp) != NULL)
-	{
-		// lines look like: /dev/mqueue/APPREQ_queue_xxx\n
-		char *p = path + strnlen_s(path, pathsize) -4;
-		int n = atoi(p);
-		highest = n > highest ? n : highest;
-	}
+	// // get all the open resp MQs
+	// const char *cmd = "/bin/ls  /dev/mqueue" QNAME_RSP "_* 2>/dev/null";
+	// FILE *fp = popen(cmd, "r");
+	// if (fp == NULL)
+	// {
+	// 	return -1;
+	// }
 
-	pclose(fp);
+	// /* Read the output a line at a time  */
+  // const int pathsize = 1200;
+	// char path[pathsize];
+	// while (fgets(path, sizeof(path)-1, fp) != NULL)
+	// {
+	// 	// lines look like: /dev/mqueue/APPREQ_queue_xxx\n
+	// 	char *p = path + strnlen_s(path, pathsize) -4;
+	// 	int n = atoi(p);
+	// 	highest = n > highest ? n : highest;
+	// }
 
-	return highest;
+	// pclose(fp);
+
+	// return highest;
 }
 
 string make_mq_name(const char *basename, char *instance )
@@ -147,18 +150,18 @@ void close_mqueues(void)
     {
       mqDesc = hsrvrQueues[n].mqDesc;
 
-      if (mqDesc != LINUX_ERROR)
+      if (mqDesc != reinterpret_cast<mqd_t>(LINUX_ERROR))
       {
         qName = hsrvrQueues[n].qName;
 
         if (mq_close(mqDesc) == NO_ERROR)
         {
           /* Reset descriptor to prevent accidental misuse */
-          hsrvrQueues[n].mqDesc = LINUX_ERROR;
+          hsrvrQueues[n].mqDesc = reinterpret_cast<mqd_t>(LINUX_ERROR);
           numQueues--;
 
           /* Remove the closed message queue */
-          if (mq_unlink(qName) == LINUX_ERROR)
+          if (mq_unlink(qName) == reinterpret_cast<mqd_t>(LINUX_ERROR))
           {
             // this means MQs already closed, no need to report
           }
@@ -203,12 +206,14 @@ void open_appcom(bool isServer, char *instance)
 	 */
 
 	mqd_t mqcom;
-  int32_t mqFlag = QOPEN_FLAG_RDWR;
+  int32_t mqFlag = O_RDWR | O_CREAT;
+  // int32_t mqFlag = QOPEN_FLAG_RDWR;
 	memset_s(instance, COM_MSGSIZE, 0);
 	if (isServer)
 	{
 		// server will call this with isServer = true
-		mqFlag = QOPEN_FLAG_RDWR | QOPEN_FLAG_CREATE;
+		// mqFlag = QOPEN_FLAG_RDWR | QOPEN_FLAG_CREATE;
+		mqFlag = O_RDWR | O_CREAT;
 		struct timespec ts;
 		if (0 != clock_gettime(CLOCK_REALTIME, &ts))
 		{
@@ -221,16 +226,16 @@ void open_appcom(bool isServer, char *instance)
 	// else APP will call this with create = false
 
 	// open /APPCOM , don't use open(_mqueues() b/c we don't want to use close_mqueues to close this one
-	struct mq_attr attr;
+	struct mq_attr attr = {0};
 		attr.mq_flags = 0;
 		attr.mq_msgsize = COM_MSGSIZE;
 		attr.mq_maxmsg  = MAX_QUEUE_LEN;
 		attr.mq_curmsgs = 0;
     mqcom = mq_open(QNAME_COM, mqFlag, QMODE_PERMISSION, &attr);
-	if (mqcom == LINUX_ERROR)
+	if (mqcom == reinterpret_cast<mqd_t>(LINUX_ERROR))
 	{
 		print_to_both(p_toolLogPtr, "System Error %s (%d) in mq_open()\n", strerror(errno), errno);
-		exit(1);
+    exit(1);
 	}
 	dbgp_intfc("  Opened Server-APP Communication queue\n");
 
@@ -282,12 +287,13 @@ errVal_t create_mqueues(mqueue_usage_t usage)
   do
   {
     // The Server creates and owns the MQs, the APP only opens them
-    int32_t mqFlag = QOPEN_FLAG_RDWR;
+    int32_t mqFlag = O_RDWR | O_CREAT;
     if (usage == MQUSAGE_SERVER)
     {
-		mqFlag |= QOPEN_FLAG_CREATE;
+		  mqFlag |= O_CREAT;
+		  // mqFlag |= QOPEN_FLAG_CREATE;
 
-		open_appcom(true, instance);
+		  open_appcom(true, instance);
     }
 
     /* Use RSP to send msg to Server */
@@ -295,6 +301,7 @@ errVal_t create_mqueues(mqueue_usage_t usage)
     string mqName = make_mq_name(QNAME_RSP, instance);
     errval = open_mqueue(&rspQueue, (char*) mqName.c_str(), mqFlag,
     APP_MSG_SIZE, MAX_QUEUE_LEN);
+    printf("Mqueue name - %s (%d)\n", mqName.c_str(), errval);
     if (errval != NO_ERROR)
     {
       print_to_both(p_toolLogPtr, "Error opening APP-To-Server queue\n");
@@ -306,6 +313,7 @@ errVal_t create_mqueues(mqueue_usage_t usage)
     mqName = make_mq_name(QNAME_REQ, instance);
     errval = open_mqueue(&reqQueue, (char*) mqName.c_str(), mqFlag,
     APP_MSG_SIZE, MAX_QUEUE_LEN);
+    printf("Mqueue name - %s (%d)\n", mqName.c_str(), errval);
     if (errval != NO_ERROR)
     {
       print_to_both(p_toolLogPtr, "Error opening Server-To-APP queue\n");
@@ -315,15 +323,15 @@ errVal_t create_mqueues(mqueue_usage_t usage)
 
   } while (false);
 
-  if (errval == NO_ERROR)
-  {
-	  dbgp_logdbg("  Total %d Msg Queues Created\n", numQueues);
-  }
-  else
-  {
-    print_to_both(p_toolLogPtr, "Failed to Create Queues\n");
-  }
-  dbgp_logdbg("  ----------------------------------\n");
+  // if (errval == NO_ERROR)
+  // {
+	//   dbgp_logdbg("  Total %d Msg Queues Created\n", numQueues);
+  // }
+  // else
+  // {
+  //   print_to_both(p_toolLogPtr, "Failed to Create Queues\n");
+  // }
+  // dbgp_logdbg("  ----------------------------------\n");
 
   return (errval);
 }
@@ -348,7 +356,7 @@ errVal_t snd_msg_to_Q(mqd_t mq, void *p_msg)
       break;
     }
 
-    if (mq == LINUX_ERROR)
+    if (mq == reinterpret_cast<mqd_t>(LINUX_ERROR))
     {
       errval = MQ_INVALID_PARAM_ERROR;
       break;
@@ -392,7 +400,7 @@ errVal_t rcv_msg_from_Q(mqd_t mq, void *p_msg, mqueue_blocking_t blocking)
                     "rcv_msg_from_Q");
       break;
     }
-    if (mq == LINUX_ERROR)
+    if (mq == reinterpret_cast<mqd_t>(LINUX_ERROR))
     {
       errval = MQ_INVALID_PARAM_ERROR;
       print_to_both(p_toolLogPtr, "Invalid Q parameter passed to %s\n",
@@ -450,15 +458,17 @@ errVal_t open_mqueue(mqd_t *p_mqDesc, char *mqName, int32_t qFlag,
     attr.mq_curmsgs = 0;
 
     *p_mqDesc = mq_open(mqName, qFlag, QMODE_PERMISSION, &attr);
+    printf("QDesc 0x%X\n", p_mqDesc);
   }
   else
   {
+    printf("No Q flag\n");
     *p_mqDesc = mq_open(mqName, qFlag);
   }
 
   errVal_t errval = NO_ERROR;
 
-  if (*p_mqDesc == LINUX_ERROR)
+  if (*p_mqDesc == reinterpret_cast<mqd_t>(LINUX_ERROR))
   {
     print_to_both(p_toolLogPtr, "System Error %s [%d] in mq_open()\n", strerror(errno), errno);
 
@@ -472,42 +482,42 @@ errVal_t open_mqueue(mqd_t *p_mqDesc, char *mqName, int32_t qFlag,
     numQueues++;
   }
 
-  if (qFlag & QOPEN_FLAG_CREATE)
-  {
-    /*
-     * this section removes any messages remaining in the queue from
-     * prior runs of the program. If a prior instance of the program
-     * terminates in an error and the queues are not emptied, this
-     * scarce system resource may not be available to this instance
-     * of the program.
-     */
-    char msgBuff[APP_MSG_SIZE + 100]; // large enough
-    memset_s(msgBuff, sizeof(msgBuff), 0);
+  // if (qFlag & QOPEN_FLAG_CREATE)
+  // {
+  //   /*
+  //    * this section removes any messages remaining in the queue from
+  //    * prior runs of the program. If a prior instance of the program
+  //    * terminates in an error and the queues are not emptied, this
+  //    * scarce system resource may not be available to this instance
+  //    * of the program.
+  //    */
+  //   char msgBuff[APP_MSG_SIZE + 100]; // large enough
+  //   memset_s(msgBuff, sizeof(msgBuff), 0);
 
 
-      do
-      {
-        errval = rcv_msg_from_Q(*p_mqDesc, msgBuff, MQUEUE_NONBLOCKING);
+  //     do
+  //     {
+  //       errval = rcv_msg_from_Q(*p_mqDesc, msgBuff, MQUEUE_NONBLOCKING);
 
-        if (errval == MQ_EOF)
-        { // run till empty
-          errval = NO_ERROR;
-          break;
-        }
-        else if (errval == MQ_INCONSISTENT_MSG_ERROR)
-        {
-          // size of message less than requested - not an error
-          continue;
-        }
-        else if (errval != NO_ERROR)
-        {
-          print_to_both(p_toolLogPtr,
-                        "Failed to receive msg from APP\n");
-          break;
-        }
-      } while (true);
+  //       if (errval == MQ_EOF)
+  //       { // run till empty
+  //         errval = NO_ERROR;
+  //         break;
+  //       }
+  //       else if (errval == MQ_INCONSISTENT_MSG_ERROR)
+  //       {
+  //         // size of message less than requested - not an error
+  //         continue;
+  //       }
+  //       else if (errval != NO_ERROR)
+  //       {
+  //         print_to_both(p_toolLogPtr,
+  //                       "Failed to receive msg from APP\n");
+  //         break;
+  //       }
+  //     } while (true);
 
-  }
+  // }
 
   return errval;
 }
@@ -528,4 +538,3 @@ static int32_t sizeof_msg(mqd_t mq)
 
   return size;
 }
-

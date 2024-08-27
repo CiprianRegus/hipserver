@@ -273,12 +273,12 @@ static void sleep_thru_intrpts(timeval_t *p_timer)
    * a premature return, then error msg is printed.
    */
 
-  if (LINUX_ERROR
-      == TEMP_FAILURE_RETRY(
-          select(FD_SETSIZE, NULL, NULL, NULL, p_timer)))
-  {
-    fprintf(stderr, "Error %d setting sleep time!!\n", errno);
-  }
+  // if (LINUX_ERROR
+  //     == TEMP_FAILURE_RETRY(
+  //         select(FD_SETSIZE, NULL, NULL, NULL, p_timer)))
+  // {
+  //   fprintf(stderr, "Error %d setting sleep time!!\n", errno);
+  // }
 
 
 #if 0  // alternate version

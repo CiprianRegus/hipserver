@@ -37,6 +37,8 @@
 #include "hssubscribe.h"
 #include "app.h"
 
+#include <sys/select.h>
+
 /************
  *  Globals
  ************/
@@ -71,9 +73,9 @@ static errVal_t handle_sess_init_req(hartip_msg_t *p_request,
 static errVal_t handle_token_passing_req(hartip_msg_t *p_request, uint8_t sessNum);
 static errVal_t handle_keepalive_req(hartip_msg_t *p_request,
 		hartip_msg_t *p_response, uint8_t sessNum);
-static bool_t is_client_sess_valid(sockaddr_in_t *client_sockaddr,
+static bool is_client_sess_valid(sockaddr_in_t *client_sockaddr,
 		uint8_t *pSessNum);
-static bool_t is_session_avlbl(uint8_t *pSessNum);
+static bool is_session_avlbl(uint8_t *pSessNum);
 static errVal_t parse_client_req(uint8_t *pduHartIp, ssize_t lenPdu,
 		hartip_msg_t *p_parsedReq);
 static void print_socket_addr(sockaddr_in_t socket_addr);
@@ -184,6 +186,12 @@ void *socketThrFunc(void *thrName)
 	hartip_msg_t reqFromClient;
 	hartip_msg_t rspToClient;
 
+	errval = create_socket();
+	printf("Create socket error (%d)\n", errval);
+
+	printf("Thread socketThrFunc start\n");
+	// return NULL;
+
 	/* Start with a clean slate */
 	memset_s(reqBuff, sizeof(reqBuff), 0);
 	memset_s(&reqFromClient, sizeof(reqFromClient), 0);
@@ -197,6 +205,9 @@ void *socketThrFunc(void *thrName)
 
 	while (TRUE) // thread runs forever
 	{
+		printf("UDP thread cycle\n");
+		k_sleep(K_MSEC(1000));
+		// continue;
 		int32_t srvrSocketFD = pCurrentSession->server_sockfd;
 		if (srvrSocketFD == HARTIP_SOCKET_FD_INVALID)
 		{
@@ -229,7 +240,7 @@ void *socketThrFunc(void *thrName)
 		/* Validate client session if not a request to initiate session */
 		if (thisMsgId != HARTIP_MSG_ID_SESS_INIT)
 		{
-			bool_t isValidSess = is_client_sess_valid(&client_sockaddr,
+			bool isValidSess = is_client_sess_valid(&client_sockaddr,
 					&sessNum);
 			if (!isValidSess)
 			{
@@ -442,7 +453,7 @@ static errVal_t create_udpserver_socket(uint16_t serverPortNum,
 
 	do
 	{
-		int32_t socketFD = socket(AF_INET, SOCK_DGRAM, 0);
+		int32_t socketFD = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
 		if (socketFD == LINUX_ERROR)
 		{
@@ -458,6 +469,7 @@ static errVal_t create_udpserver_socket(uint16_t serverPortNum,
 		server_addr.sin_family = AF_INET;
 		server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 		server_addr.sin_port = htons(serverPortNum);
+		printf("UDP port %d fd %d\n", serverPortNum, socketFD);
 
 		dbgp_logdbg("\nServer Socket:\n");
 		print_socket_addr(server_addr);
@@ -465,6 +477,7 @@ static errVal_t create_udpserver_socket(uint16_t serverPortNum,
 		if (bind(socketFD, (struct sockaddr *) &server_addr,
 				sizeof(server_addr)) == LINUX_ERROR)
 		{
+			printf("Bind error###\n");
 			if (errno == EINVAL)
 			{
 				errval = SOCKET_PORT_USED_ERROR;
@@ -482,6 +495,7 @@ static errVal_t create_udpserver_socket(uint16_t serverPortNum,
 		} // if bind()
 		else
 		{
+			printf("Bind success --- fd (%d) to port (%d)\n", socketFD, serverPortNum);
 			*pSocketFD = socketFD;
 		}
 	} while (FALSE);
@@ -489,9 +503,9 @@ static errVal_t create_udpserver_socket(uint16_t serverPortNum,
 	return (errval);
 }
 
-static bool_t is_session_avlbl(uint8_t *pSessNum)
+static bool is_session_avlbl(uint8_t *pSessNum)
 {
-	bool_t isSessAvlbl = FALSE;
+	bool isSessAvlbl = FALSE;
 
 	for (uint8_t i = 0; i < HARTIP_NUM_SESS_SUPPORTED; i++)
 	{
@@ -612,7 +626,7 @@ static errVal_t handle_sess_init_req(hartip_msg_t *p_request,
 			}
 
 			uint8_t thisSess = 0;
-			bool_t isReqErr = FALSE;
+			bool isReqErr = FALSE;
 
 			if (p_reqHdr->version != HARTIP_PROTOCOL_VERSION)
 			{
@@ -805,7 +819,7 @@ static errVal_t handle_token_passing_req(hartip_msg_t *p_request, uint8_t sessNu
 			time(&hsMsg.time);  // timestamp
 
 
-			bool_t isSrvrCommand = (
+			bool isSrvrCommand = (
 					hsMsg.cmd == 257 ||
 					hsMsg.cmd == 258 ||
 					/*
@@ -880,10 +894,10 @@ static errVal_t handle_token_passing_req(hartip_msg_t *p_request, uint8_t sessNu
  *
  * RETURN: TRUE if ok to proceed, FALSE otherwise
  */
-static bool_t is_client_sess_valid(sockaddr_in_t *pClientAddr,
+static bool is_client_sess_valid(sockaddr_in_t *pClientAddr,
 		uint8_t *pSessNum)
 {
-	bool_t retval = FALSE;
+	bool retval = FALSE;
 	uint8_t i;
 
 	for (i = 0; i < HARTIP_NUM_SESS_SUPPORTED; i++)
@@ -1074,6 +1088,11 @@ static void print_socket_addr(sockaddr_in_t socket_addr)
 static errVal_t wait_for_client_req(uint8_t *p_reqBuff, ssize_t *p_lenPdu,
 		sockaddr_in_t *p_client_sockaddr)
 {
+	struct sockaddr_in addr;
+	socklen_t addr_len = sizeof(addr);
+	uint8_t client_data[20] = {0};
+	int ret;
+
 	fd_set read_fdset;
 	errVal_t errval = NO_ERROR;
 	struct timeval timeout =
@@ -1087,13 +1106,30 @@ static errVal_t wait_for_client_req(uint8_t *p_reqBuff, ssize_t *p_lenPdu,
 		FD_ZERO(&read_fdset);
 		FD_SET(pCurrentSession->server_sockfd, &read_fdset);
 
-		while (TRUE) /* run forever */
+		ret = getsockname(pCurrentSession->server_sockfd, (struct sockaddr *)&addr, &addr_len);
+		printf("Socket addr config (ret %d): port - %d addr - %d", ret, addr.sin_port, addr.sin_addr.s_addr);
+
+		while (1) /* run forever */
 		{
+			printf("Waiting for client req... (%d)\n", pCurrentSession->server_sockfd + 1);
 			int retval;
-			timeout.tv_sec = 60;
+			timeout.tv_sec = 1;
 			timeout.tv_usec = 0;	// 2 microseconds
-			retval = select(pCurrentSession->server_sockfd + 1, &read_fdset,
-			NULL, NULL, NULL/*&timeout*/);
+
+			// k_sleep(K_MSEC(1000));
+			// ret = 0;
+			// while (!ret){
+			// 	k_sleep(K_MSEC(100));
+			// 	ret = recvfrom(pCurrentSession->server_sockfd, client_data, 3, NULL, NULL, NULL);
+			// 	if (ret > 0)
+			// 		printf("Received UDP!!!\n");
+			// }
+			retval = select(pCurrentSession->server_sockfd + 1, &read_fdset, NULL, NULL, NULL/*&timeout*/);
+			printk("UDP thread select (%d)\n", retval);
+			// continue;
+			// if (retval == -1){
+			// }
+
 			if (retval == LINUX_ERROR)
 			{
 				if (errno == EINTR)
@@ -1137,15 +1173,17 @@ static errVal_t wait_for_client_req(uint8_t *p_reqBuff, ssize_t *p_lenPdu,
 
 			dbgp_hs("\n>>>>>>>>>>>>>>>>>>>>>>>\n");dbgp_hs("Server got a Client request:\n");
 			dbgp_logdbg("\n-------------------\n");
-			dbgp_logdbg("Msg recd by Server from Client:\n");
+			// dbgp_logdbg("Msg recd by Server from Client:\n");
+			
+			printf("Msg recd by Server from Client:\n");
 
 			uint16_t i;
 			for (i = 0; i < *p_lenPdu; i++)
 			{
-				dbgp_logdbg(" %.2X", p_reqBuff[i]);
+				printf(" %.2X", p_reqBuff[i]);
 			}
-			dbgp_logdbg("\n");
-			dbgp_logdbg("-------------------\n");
+			printf("\n");
+			printf("-------------------\n");
 
 			break; // how can this run forever with a break? VG
 		} // while (TRUE) /* run forever */

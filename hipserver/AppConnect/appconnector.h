@@ -48,6 +48,8 @@
 #include "errval.h"
 #include "toolqueues.h"
 
+#define _FLOWAPP
+
 #ifdef INC_DEBUG
 #pragma message("    Finished Includes::AppConnector.h") 
 #endif
@@ -223,17 +225,17 @@ AppConnector<PDU_CLASS>::AppConnector()
     pPdu->setLong(tLn);  // set long address to null value
 
 
-    if (signal(SIGUSR2, abort_handler) == SIG_ERR)
-    {
-    errval = LINUX_ERROR;
-    dbgp_logdbg("\nCan't catch SIGUSR2 signal\n");
-    // make it unusable
-    pPdu = NULL;
-    break;
-    }
+    // if (signal(SIGUSR2, abort_handler) == SIG_ERR)
+    // {
+    // errval = LINUX_ERROR;
+    // dbgp_logdbg("\nCan't catch SIGUSR2 signal\n");
+    // // make it unusable
+    // pPdu = NULL;
+    // break;
+    // }
 
     /* Open RX and TX queues to server */
-    rxQueue = txQueue = LINUX_ERROR;
+    rxQueue = txQueue = reinterpret_cast<mqd_t>(LINUX_ERROR);
     errval = openMQs();
     if (errval != NO_ERROR)
     {
@@ -366,7 +368,7 @@ void AppConnector<PDU_CLASS>::abortApp(void) /* this may be called from any thre
   // signal the run method task to terminate
   // this gives me an un-handled exception...except the handler runs...kill(getpid(),SIGUSR2);
   // try this... does exactly the same...
-  raise(SIGUSR2);
+  // raise(SIGUSR2);
 }
 
 /**
@@ -411,7 +413,7 @@ errVal_t AppConnector<PDU_CLASS>::openMQs(void)
       if (mq_close(rxQueue) == NO_ERROR)
       {
         /* Reset descriptor to prevent accidental misuse */
-        rxQueue = LINUX_ERROR;
+        // rxQueue = LINUX_ERROR;
       }
       else
       {
@@ -458,7 +460,7 @@ int AppConnector<PDU_CLASS>::waitMessage(void)
 
   do
   {
-    if (rxQueue == LINUX_ERROR)
+    if (rxQueue == nullptr)
     {
       errval = BAD_PARAM; // hasn't started yet 
       dbgp_log("Invalid Q parameter passed to %s\n",
@@ -470,8 +472,8 @@ int AppConnector<PDU_CLASS>::waitMessage(void)
 #endif
 
     /* assumes server & APP on same machine (same endian) */
-    try
-    {
+    // try
+    // {
       pPdu->bytesLoaded = mq_receive(rxQueue, (char*) (pPdu->baseStruct()),
                                      APP_MSG_SIZE, NULL);
       if (pPdu->bytesLoaded == LINUX_ERROR)
@@ -486,15 +488,15 @@ int AppConnector<PDU_CLASS>::waitMessage(void)
         strcat_s(buf, bufsiz, pPdu->ToHex());
         dbgp_init("%s\n", buf);
       }
-    }
-    catch (...)
-    {
-      time2stop = true;
-      // it's our signal (external ^C handler must send us our signal)
-      errval = INTERRUPTED;
-      dbgp_log("Signal %d caught in AppConnector::waitMessage.\n",errval);
-      break;    // time to go
-    }
+    // }
+    // catch (...)
+    // {
+    //   time2stop = true;
+    //   // it's our signal (external ^C handler must send us our signal)
+    //   errval = INTERRUPTED;
+    //   dbgp_log("Signal %d caught in AppConnector::waitMessage.\n",errval);
+    //   break;    // time to go
+    // }
 
 //--------------------------------------------------------------------------
 

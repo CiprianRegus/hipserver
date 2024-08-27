@@ -325,7 +325,7 @@ void TpPdu::ProcessErrResponse(uint8_t rc)
   /* Adjust byte count for Cmd 31, based on if it is used as an
    * expansion flag or a pure command in the request PDU.
    */
-  bool_t is16BitCmd = FALSE;
+  bool is16BitCmd = 0;
   if (cmdNum == HART_CMD_EXP_FLAG)
   {
     uint8_t reqBC = pPDU[TP_OFFSET_BCOUNT_UNIQ];
@@ -336,7 +336,7 @@ void TpPdu::ProcessErrResponse(uint8_t rc)
     if (reqBC >= 2)
     {
       rspLen += 2;
-      is16BitCmd = TRUE;
+      is16BitCmd = 1;
     }
   }
 

@@ -134,6 +134,8 @@ errVal_t start_a_thread(pthread_t *p_thrID, void *(*p_thrFunc)(void *),
     dbgp_thr("...Creating next thread (current total = %d) - %s\n",
         numThrs, thrName);
 
+    printf("Creating thread...\n");
+
     errNo = pthread_create(p_thrID, NULL, p_thrFunc, (void *) thrName);
     if (errNo != NO_ERROR)
     {

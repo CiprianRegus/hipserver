@@ -45,9 +45,15 @@ typedef struct sigaction sigaction_t;
 /************
  *  Globals
  ************/
-extern bool_t ifEndApp;
+extern bool ifEndApp;
 extern sigaction_t newAction, oldAction;
 extern sigset_t newSet, oldSet;
+
+typedef struct {
+  int          si_signo;    /* Signal number */
+  int          si_code;     /* Cause of the signal */
+  union sigval si_value;    /* Signal value */
+} siginfo_t;
 
 /************************
  *  Function Prototypes

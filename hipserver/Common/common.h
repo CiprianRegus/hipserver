@@ -125,8 +125,8 @@ typedef BYTE FSTAT;
  * Other common definitions
  */
 #define FILENAME_LEN     40
-#define RESERVED0        0   // Value is Reserved, must be set to 0
-#define RESERVED1        1   // Value is Reserved, must be set to 1
+// #define RESERVED0        0   // Value is Reserved, must be set to 0
+// #define RESERVED1        1   // Value is Reserved, must be set to 1
 
 /*
  * Misc. macros

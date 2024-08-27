@@ -25,6 +25,7 @@ extern unsigned char respCode,    devStat;// in APP.Cpp
 /* long address and short address must be set from outside */
 AppPdu::AppPdu()
 {	
+	printf("AppPdu init\n");
 	// give the TpPdu class a pointer to the data buffer in the AppMsg
 	SetPdu(&(pdu[0]));
 }
