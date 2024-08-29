@@ -487,6 +487,8 @@ int AppConnector<PDU_CLASS>::waitMessage(void)
         char buf[bufsiz] = "APP RECV ";
         strcat_s(buf, bufsiz, pPdu->ToHex());
         dbgp_init("%s\n", buf);
+        
+        printf("Message received by APP\n");
       }
     // }
     // catch (...)
@@ -550,6 +552,7 @@ int AppConnector<PDU_CLASS>::processMessage(App *pApp) // message is in p_Pdu->b
   {
   case HART_APP_CMD:
   {
+    printf("APP received HART_APP_CMD\n");
     if (  (ret = pApp->handleMessage(&usersPduClass)) == NO_ERROR  )
     {
 

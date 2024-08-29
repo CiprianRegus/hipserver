@@ -314,8 +314,8 @@ void *popRxThrFunc(void *thrName)
     processRxQueue();
 
     usleep(QSLEEP * 1000);      // microseconds
-    k_sleep(K_MSEC(1000));
-    printf("popRxThrFunc running\n");
+    k_sleep(K_MSEC(10));
+    // printf("popRxThrFunc running\n");
 
   } while (TRUE); /* run forever */
 }
@@ -329,6 +329,7 @@ errVal_t snd_msg_to_app(AppMsg *p_txMsg)
   dbgp_trace("~~~~~~ %s ~~~~~~\n", funcName);
 
   dbgp_logdbg("\nServer sending message to APP...\n");
+  printf("\nServer sending message to APP...\n");
 
   do
   {
@@ -350,6 +351,7 @@ errVal_t snd_msg_to_app(AppMsg *p_txMsg)
       break;
     }
     dbgp_intfc("Msg sent from Server to APP\n");
+    printf("Msg sent from Server to APP\n");
   } while (FALSE);
 
   return errval;

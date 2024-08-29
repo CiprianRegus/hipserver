@@ -68,6 +68,8 @@ bool TpPdu::AddressMatch(const uint8_t *a)
   memcpy_s(buf1, TPHDR_ADDRLEN_UNIQ, Address(), len);
   memcpy_s(buf2, TPHDR_ADDRLEN_UNIQ, a, len);
 
+  return true;
+
   //// mask off primary master bit
   //buf1[0] &= 0x7f;
   //buf2[0] &= 0x7f;

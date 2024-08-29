@@ -230,10 +230,12 @@ void *socketThrFunc(void *thrName)
 		errval = parse_client_req(reqBuff, pduLen, &reqFromClient);
 		if (errval != NO_ERROR)
 		{
+			printf("Parsing Error\n");
 			print_to_both(p_toolLogPtr, "Parsing Error in %s\n", funcName);
 			continue;
 		}
-		dbgp_logdbg("Client request parsed OK.\n");
+		printf("Client request parsed OK.\n");
+		// dbgp_logdbg("Client request parsed OK.\n");
 
 		HARTIP_MSG_ID thisMsgId = reqFromClient.hipHdr.msgID;
 
@@ -244,6 +246,7 @@ void *socketThrFunc(void *thrName)
 					&sessNum);
 			if (!isValidSess)
 			{
+				printf("Client request invakud.\n");
 				print_to_both(p_toolLogPtr, "Client session invalid!!\n");
 				script_sleep(3);
 				continue;
@@ -256,16 +259,19 @@ void *socketThrFunc(void *thrName)
 		memset_s(&rspToClient, sizeof(rspToClient), 0);
 
 		dbgp_logdbg("#*#*#*# Server recd a ");
+		printf("#*#*#*# Server recd a ");
 
 		switch (thisMsgId)
 		{
 		case HARTIP_MSG_ID_SESS_INIT:
 			dbgp_logdbg("Session Initiate Request\n");
+			printf("Session Initiate Request\n");
 			errval = handle_sess_init_req(&reqFromClient, &rspToClient,
 					client_sockaddr);
 			if (errval == NO_ERROR)
 			{
 				dbgp_logdbg("\nHART-IP Initiate Session...  Session %d is created.\n", pCurrentSession->sessNum);
+				printf("\nHART-IP Initiate Session...  Session %d is created.\n", pCurrentSession->sessNum);
 			}
 
 			// pCurrentSession is set in handle_sess_init_req()
@@ -281,38 +287,46 @@ void *socketThrFunc(void *thrName)
 			break;
 		case HARTIP_MSG_ID_SESS_CLOSE:
 			dbgp_logdbg("HART-IP Close Session...  ");
+			printf("HART-IP Close Session...  ");
 			errval = handle_sess_close_req(&reqFromClient, &rspToClient,
 					sessNum);
 			if (errval != NO_ERROR)
 			{
 				print_to_both(p_toolLogPtr, "  Failed to close session\n");
+				printf("Failed to close session\n");
 			}
 			break;
 		case HARTIP_MSG_ID_TP_PDU:
 			dbgp_logdbg("Token-Passing PDU\n");
+			printf("Token-Passing PDU\n");
 			errval = handle_token_passing_req(&reqFromClient, sessNum);
 			if (errval != NO_ERROR)
 			{
 				print_to_both(p_toolLogPtr,
 						"Error in handle_token_passing_req()\n");
+				printf("Error in handle_token_passing_req()\n");
 			}
 			break;
 		case HARTIP_MSG_ID_KEEPALIVE:
 			dbgp_logdbg("Keep-Alive PDU\n");
+			printf("Keep-Alive PDU\n");
 			errval = handle_keepalive_req(&reqFromClient, &rspToClient, sessNum);
 			if (errval != NO_ERROR)
 			{
 				print_to_both(p_toolLogPtr,
 						"Error in handle_keepalive_req()\n");
+				printf("Error in handle_keepalive_req()\n");
 			}
 			break;
 		case HARTIP_MSG_ID_DISCOVERY:
 			dbgp_init("Keep-Alive/Discovery msg\n");
+			printf("Keep-Alive/Discovery msg\n");
 			break;
 		default:
 			/* Should never come here if parse_client_req() worked */
 			print_to_both(p_toolLogPtr,
 					"HART-IP Invalid Msg ID (%d) in Client Request.\n", thisMsgId);
+			printf("HART-IP Invalid Msg ID (%d) in Client Request.\n", thisMsgId);
 			break;
 		} /* switch */
 
@@ -798,8 +812,10 @@ static errVal_t handle_token_passing_req(hartip_msg_t *p_request, uint8_t sessNu
 
 	errVal_t errval = NO_ERROR;
 
+	printf("Process Token passing PDU\n");
 	sem_wait(p_semServerTables);	// lock server tables when available
 	{
+		printf("Token passing PDU processing section... 0x%X\n", p_request);
 		do
 		{
 			if (p_request == NULL)
@@ -817,7 +833,6 @@ static errVal_t handle_token_passing_req(hartip_msg_t *p_request, uint8_t sessNu
 			TpPdu tppdu(hsMsg.message.hipTPPDU);
 			hsMsg.cmd = tppdu.CmdNum();
 			time(&hsMsg.time);  // timestamp
-
 
 			bool isSrvrCommand = (
 					hsMsg.cmd == 257 ||
@@ -838,6 +853,8 @@ static errVal_t handle_token_passing_req(hartip_msg_t *p_request, uint8_t sessNu
 			memcpy_s(txMsg.pdu, TPPDU_MAX_FRAMELEN, p_request->hipTPPDU, sizeof(p_request->hipTPPDU));
 			txMsg.transaction = (sessNum << 16);
 			txMsg.transaction += hsMsg.message.hipHdr.seqNum; // client # + HART-IP sequence number
+
+			printf("Token passing PDU command %d\n", hsMsg.cmd);
 
 			if (isSrvrCommand)
 			{ // these msgs processed by server
@@ -1113,22 +1130,9 @@ static errVal_t wait_for_client_req(uint8_t *p_reqBuff, ssize_t *p_lenPdu,
 		{
 			printf("Waiting for client req... (%d)\n", pCurrentSession->server_sockfd + 1);
 			int retval;
-			timeout.tv_sec = 1;
+			timeout.tv_sec = 60;
 			timeout.tv_usec = 0;	// 2 microseconds
-
-			// k_sleep(K_MSEC(1000));
-			// ret = 0;
-			// while (!ret){
-			// 	k_sleep(K_MSEC(100));
-			// 	ret = recvfrom(pCurrentSession->server_sockfd, client_data, 3, NULL, NULL, NULL);
-			// 	if (ret > 0)
-			// 		printf("Received UDP!!!\n");
-			// }
 			retval = select(pCurrentSession->server_sockfd + 1, &read_fdset, NULL, NULL, NULL/*&timeout*/);
-			printk("UDP thread select (%d)\n", retval);
-			// continue;
-			// if (retval == -1){
-			// }
 
 			if (retval == LINUX_ERROR)
 			{
