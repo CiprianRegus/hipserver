@@ -31,6 +31,13 @@
 #include <limits.h>
 #include <stdint.h>
 
+#ifndef TRUE
+#define TRUE    1
+#endif
+#ifndef FALSE
+#define FALSE   0
+#endif
+
 #ifndef SIZE8_T
 #define SIZE8_T
 # if UCHAR_MAX == 0xFFu
