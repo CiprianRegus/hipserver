@@ -297,8 +297,6 @@ static void processRxQueue()
     {
       print_to_both(p_toolLogPtr, "Failed to receive msg from APP\n");
     }
-
-    k_sleep(K_MSEC(1000));
   } while (TRUE); /* run forever */
 }
 

@@ -206,7 +206,6 @@ void *socketThrFunc(void *thrName)
 	while (TRUE) // thread runs forever
 	{
 		printf("UDP thread cycle\n");
-		k_sleep(K_MSEC(1000));
 		// continue;
 		int32_t srvrSocketFD = pCurrentSession->server_sockfd;
 		if (srvrSocketFD == HARTIP_SOCKET_FD_INVALID)
